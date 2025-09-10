@@ -6,6 +6,6 @@ Foco:
     rapido e expansivel.
 
 Técnologia:
-    Reconhecimento de voz.
+    Reconhecimento de voz: (Google)
     sintese de voz.
     Algum de tipo IA.
