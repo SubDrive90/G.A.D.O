@@ -1,4 +1,4 @@
-# G.A.D
+# G.A.D.O
 um assitente virtual em python
 
 Foco: 
