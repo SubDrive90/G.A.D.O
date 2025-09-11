@@ -19,3 +19,5 @@ while True:
         print(rec.PartialResult())
 
 print(rec.FinalResult())
+
+#https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
