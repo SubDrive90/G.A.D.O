@@ -2,7 +2,7 @@ import pyttsx3
 engine = pyttsx3.init()
 
 
-voices = enine.getproperty('voices')
+voices = engine.getproperty('voices')
 
 engine.setProperty('voice',voices[-2].id)
 
