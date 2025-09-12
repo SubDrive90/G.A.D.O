@@ -7,5 +7,5 @@ Foco:
 
 Técnologia:
     Reconhecimento de voz: (Google para reconhecimento online, vosk para reconhecimento offline)
-    sintese de voz.
+    sintese de voz: (pyttsx3)
     tipo de IA: Gemma 2.0B

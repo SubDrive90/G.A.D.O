@@ -8,9 +8,7 @@ import json
 engine = pyttsx3.init()
 
 voices = engine.getproperty('voices')
-
 engine.setProperty('voice',voices[-2].id)
-
 
 
 def speak(text):
@@ -25,7 +23,7 @@ stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, fram
 stream.start_stream()
 
 while True:
-    data = stream.read(2000)
+    data = stream.read(4000,exception_on_overflow=False)
     if len(data) == 0:
         break
     if rec.AcceptWaveform(data):
