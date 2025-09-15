@@ -1,79 +1,135 @@
-from vosk import Model, KaldiRecognizer
 import os
+import json
 import pyaudio
 import pyttsx3
-import json
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from vosk import Model, KaldiRecognizer
+from gtts import gTTS
+from playsound import playsound
 
-model_id = "google/gemma-2b-it"
-
-tokenizer = AutoTokenizer.from_pretrained(model_id)
-model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    torch_dtype=torch.bfloat16
-)
+# --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DA IA ---
+# Certifique-se de que você já aceitou a licença do modelo no Hugging Face.
+# Se você ainda não fez o login, execute no terminal: `huggingface-cli login`
+try:
+    model_id = "google/gemma-2b-it"
+    print("Carregando o modelo Gemma do Hugging Face. Isso pode levar alguns minutos na primeira vez.")
+    
+    # Carrega o tokenizer e o modelo da IA
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        torch_dtype=torch.bfloat16
+    )
+    print("Modelo Gemma carregado com sucesso!")
+except Exception as e:
+    print(f"Erro ao carregar o modelo Gemma: {e}")
+    print("Possíveis causas: falha na conexão, ou você não aceitou a licença do modelo no Hugging Face ou não está autenticado.")
+    exit()
 
 def get_gemma_response(prompt_text):
-
-    chat_prompt = f"O usuario diz: {prompt_text}. Responda á pergunta do usuario."
-
+    """Gera uma resposta da IA a partir do texto do usuário."""
+    chat_prompt = f"O usuario diz: {prompt_text}. Responda à pergunta do usuario."
     input_ids = tokenizer(chat_prompt, return_tensors="pt")
-
+    
+    # Gera a resposta da IA
     outputs = model.generate(**input_ids, max_new_tokens=150)
-
     response = tokenizer.decode(outputs[0])
-
+    
+    # Limpa a resposta para remover o prompt inicial
     response = response.split(chat_prompt)[-1].strip()
-
     return response
 
-#sintese de fala
-engine = pyttsx3.init()
-
-voices = engine.getproperty('voices')
-engine.setProperty('voice',voices[-2].id)
+# --- 2. SÍNTESE DE FALA (TTS - TEXT-TO-SPEECH) ---
+# Substitua a seção de 'SÍNTESE DE FALA' por este código
 
 
 def speak(text):
+    """Converte o texto em fala usando o Google TTS."""
+    print(f"IA: {text}")
+    try:
+        # O Google TTS escolhe a voz automaticamente com base no idioma,
+        # e as vozes masculinas e femininas variam de acordo com o texto.
+        tts = gTTS(text=text, lang='pt', slow=False)
+        
+        # Salva e reproduz o arquivo de áudio
+        tts.save("response.mp3")
+        playsound("response.mp3")
+        os.remove("response.mp3")
+    except Exception as e:
+        print(f"Erro ao gerar ou reproduzir o áudio: {e}")
+# Configurações para a voz soar mais natural
+engine.setProperty('rate', 200) # Velocidade da fala
+engine.setProperty('volume', 1.0) # Volume
+
+# Define a voz (a posição pode variar em cada sistema)
+engine.setProperty('voice', voices[-2].id)
+
+def speak(text):
+    """Converte o texto em fala e o reproduz."""
+    print(f"IA: {text}")
     engine.say(text)
     engine.runAndWait()
 
-model = Model("model")
-rec = KaldiRecognizer(model, 16000)
+# --- 3. RECONHECIMENTO DE FALA (VOSK) ---
+# A pasta com os arquivos do Vosk deve estar no mesmo diretório do seu arquivo Python.
+vosk_model_path = "vosk-model-small-pt-0.3"
+
+if not os.path.exists(vosk_model_path):
+    print(f"Erro: A pasta do modelo Vosk '{vosk_model_path}' não foi encontrada.")
+    print("Verifique se a pasta descompactada está no mesmo diretório do seu arquivo .py.")
+    exit(1)
+
+vosk_model = Model(vosk_model_path)
+rec = KaldiRecognizer(vosk_model, 16000)
 
 p = pyaudio.PyAudio()
 
 try:
     stream = p.open(format=pyaudio.paInt16, channels=1, rate=16000, input=True, frames_per_buffer=8000)
     stream.start_stream()
-    print("Ouvindo... Pressione Ctrl+C para sair.")
+    print("Ouvindo... Fale algo para a IA. Pressione Ctrl+C para sair.")
 except OSError as e:
-    print(f"Erro inesperado: {e}")
-    speak("Desculpe Ocorreu um erro! vou ter que reiniciar.")
+    print(f"Erro ao inicializar o áudio: {e}")
+    speak("Desculpe, ocorreu um erro no áudio. O programa será encerrado.")
     exit()
 
-
+# --- 4. LOOP PRINCIPAL DE INTERAÇÃO ---
 try:
     while True:
-        data = stream.read(4000,exception_on_overflow=False)
-        if len(data) == 0:
-            break
+        data = stream.read(4000, exception_on_overflow=False)
 
-    if rec.AcceptWaveform(data):
-        result = json.loads(rec.Result())
-        text = result['text']
+        if rec.AcceptWaveform(data):
+            result = json.loads(rec.Result())
+            text = result['text']
 
-        if text:
-            print(f"Você disse: {text}")
+            if text:
+                print(f"Você disse: {text}")
 
-            ia_response = get_gemma_response(text)
+                # Gera a resposta da IA
+                ia_response = get_gemma_response(text)
+                
+                # --- NOVO: Limpa a resposta da IA antes de falar ---
+                ia_response_limpa = ia_response.replace('***', '').replace('**', '').replace('*', '')
 
-            print(f"IA respondeu: {ia_response}")
-            speak(ia_response)
+                print(f"IA: {ia_response_limpa}")
+
+                # Reproduz a resposta da IA
+                speak(ia_response_limpa)
+
+except KeyboardInterrupt:
+    print("\nEncerrando o programa.")
 except Exception as e:
     print(f"Erro inesperado: {e}")
-    speak("Desculpe ")
+    speak("Desculpe, um erro inesperado ocorreu.")
+finally:
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
 
+
+#pip install pypiwin32
+#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
+#https://huggingface.co/google/gemma-2b-it
 #https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
 #pip install transformers accelerate
