@@ -1,12 +1,11 @@
 import os
 import json
 import pyaudio
-import pyttsx3
 import torch
+import pygame
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from vosk import Model, KaldiRecognizer
 from gtts import gTTS
-from playsound import playsound
 
 # --- 1. CONFIGURAÇÃO E INICIALIZAÇÃO DA IA ---
 # Certifique-se de que você já aceitou a licença do modelo no Hugging Face.
@@ -41,39 +40,32 @@ def get_gemma_response(prompt_text):
     return response
 
 # --- 2. SÍNTESE DE FALA (TTS - TEXT-TO-SPEECH) ---
-# Substitua a seção de 'SÍNTESE DE FALA' por este código
-
-
 def speak(text):
-    """Converte o texto em fala usando o Google TTS."""
+    """Converte o texto em fala usando o Google TTS e o reproduz."""
     print(f"IA: {text}")
     try:
-        # O Google TTS escolhe a voz automaticamente com base no idioma,
-        # e as vozes masculinas e femininas variam de acordo com o texto.
         tts = gTTS(text=text, lang='pt', slow=False)
-        
-        # Salva e reproduz o arquivo de áudio
         tts.save("response.mp3")
-        playsound("response.mp3")
+
+        # Inicializa o mixer do pygame e toca o arquivo
+        pygame.mixer.init()
+        pygame.mixer.music.load("response.mp3")
+        pygame.mixer.music.play()
+
+        # Espera a reprodução terminar antes de encerrar
+        while pygame.mixer.music.get_busy():
+            pygame.time.Clock().tick(10)
+
+        # Encerra o mixer e remove o arquivo temporário
+        pygame.mixer.quit()
         os.remove("response.mp3")
+
     except Exception as e:
         print(f"Erro ao gerar ou reproduzir o áudio: {e}")
-# Configurações para a voz soar mais natural
-engine.setProperty('rate', 200) # Velocidade da fala
-engine.setProperty('volume', 1.0) # Volume
-
-# Define a voz (a posição pode variar em cada sistema)
-engine.setProperty('voice', voices[-2].id)
-
-def speak(text):
-    """Converte o texto em fala e o reproduz."""
-    print(f"IA: {text}")
-    engine.say(text)
-    engine.runAndWait()
 
 # --- 3. RECONHECIMENTO DE FALA (VOSK) ---
-# A pasta com os arquivos do Vosk deve estar no mesmo diretório do seu arquivo Python.
-vosk_model_path = "vosk-model-small-pt-0.3"
+# Altere o nome da pasta do modelo para o que você baixou
+vosk_model_path = "vosk-model-pt-fb-v0.1.1-20220516_2113"
 
 if not os.path.exists(vosk_model_path):
     print(f"Erro: A pasta do modelo Vosk '{vosk_model_path}' não foi encontrada.")
@@ -105,15 +97,11 @@ try:
 
             if text:
                 print(f"Você disse: {text}")
-
-                # Gera a resposta da IA
                 ia_response = get_gemma_response(text)
                 
-                # --- NOVO: Limpa a resposta da IA antes de falar ---
+                # --- Limpa a resposta da IA antes de falar ---
                 ia_response_limpa = ia_response.replace('***', '').replace('**', '').replace('*', '')
-
-                print(f"IA: {ia_response_limpa}")
-
+                
                 # Reproduz a resposta da IA
                 speak(ia_response_limpa)
 
@@ -127,9 +115,7 @@ finally:
     stream.close()
     p.terminate()
 
-
 #pip install pypiwin32
-#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
 #https://huggingface.co/google/gemma-2b-it
 #https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip
 #pip install transformers accelerate
