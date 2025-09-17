@@ -8,3 +8,6 @@ gTTS
 torch
 transformers
 accelerate
+pypiwin32
+Flask
+Flask-Cors
