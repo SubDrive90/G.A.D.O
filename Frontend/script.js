@@ -1,4 +1,4 @@
-wconst micBtn = document.querySelector('.mic-btn');
+const micBtn = document.querySelector('.mic-btn');
 const chatBody = document.querySelector('.chat-body');
 
 
