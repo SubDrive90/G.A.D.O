@@ -1,43 +1,37 @@
+# main.py
 
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
 import os
+import json
+import torch
+import pygame
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from flask import Flask, request, jsonify, render_template # Note a mudança aqui
+from flask_cors import CORS
 from gtts import gTTS
 
+# --- Configuração do Flask e CORS ---
+# Obtenha o caminho absoluto do diretório principal do projeto
+basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
-app = Flask(__name__)
-CORS(app) 
+# Use as pastas padronizadas do Flask: 'templates' e 'static'
+# A rota para o template será 'Frontend/chat.html' e os arquivos estáticos serão servidos de 'Frontend'
+app = Flask(__name__,
+            static_folder=os.path.join(basedir, 'Frontend'),
+            template_folder=os.path.join(basedir, 'Frontend'))
+CORS(app)
 
+# ... restante do seu código ...
 
-try:
-    model_id = "google/gemma-2b-it"
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        dtype=torch.bfloat16
-    )
-    print("Modelo Gemma carregado com sucesso para a API!")
-except Exception as e:
-    print(f"Erro ao carregar o modelo Gemma: {e}")
-    exit()
+# --- Rota para servir a página HTML principal ---
+@app.route('/')
+def serve_index():
+    # Agora renderizamos o template, o que nos permite usar 'url_for' no HTML
+    return render_template('chat.html')
 
-def get_gemma_response(prompt_text):
-    
-    chat_prompt = f"O usuario diz: {prompt_text}. Responda à pergunta do usuario."
-    input_ids = tokenizer(chat_prompt, return_tensors="pt")
-    
-    outputs = model.generate(**input_ids, max_new_tokens=150)
-    response = tokenizer.decode(outputs[0])
-    
-   
-    response = response.split(chat_prompt)[-1].strip()
-    return response
-
-
-@app.route('/Frontend/chat', methods=['POST'])
+# --- Rota para processar a requisição de fala da API ---
+@app.route('/api/chat', methods=['POST'])
 def chat():
+    # ... o resto do código da API permanece o mesmo
     data = request.json
     user_message = data.get('message', '')
 
@@ -46,15 +40,11 @@ def chat():
 
     print(f"Mensagem recebida: {user_message}")
 
-   
     ai_response = get_gemma_response(user_message)
-    
-    
     cleaned_response = ai_response.replace('***', '').replace('**', '').replace('*', '')
 
-    
     return jsonify({"response": cleaned_response})
 
+
 if __name__ == '__main__':
-    
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=8000, debug=True)

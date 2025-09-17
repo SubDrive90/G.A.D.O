@@ -1,0 +1,189 @@
+/* --- Estilos Globais e do Corpo da Página --- */
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #1a1a1a;
+  color: #f1f1f1;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+/* --- Layout Principal da Aplicação --- */
+
+.app {
+  display: flex;
+  width: 90%;
+  max-width: 1200px;
+  height: 90%;
+  background-color: #2a2a2a;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+/* --- Barra Lateral (Sidebar) --- */
+
+.sidebar {
+  width: 300px;
+  background-color: #212121;
+  border-right: 1px solid #333;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.profile {
+  width: 60px;
+  height: 60px;
+  background-color: #555;
+  border-radius: 50%;
+  margin-bottom: 20px;
+}
+
+.contacts {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.contact {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.2s;
+}
+
+.contact.active {
+  background-color: #3e3e3e;
+}
+
+.contact:hover {
+  background-color: #333;
+}
+
+.avatar {
+  width: 45px;
+  height: 45px;
+  background-color: #555;
+  border-radius: 50%;
+  margin-right: 15px;
+}
+
+.contact h3 {
+  margin: 0;
+  font-size: 1em;
+}
+
+.contact p {
+  margin: 0;
+  font-size: 0.8em;
+  color: #999;
+}
+
+/* --- Seção de Chat Principal --- */
+
+.chat {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  background-color: #212121;
+  border-bottom: 1px solid #333;
+}
+
+.chat-avatar {
+  width: 50px;
+  height: 50px;
+  background-color: #555;
+  border-radius: 50%;
+  margin-right: 15px;
+}
+
+.chat-name {
+  margin: 0;
+  font-size: 1.2em;
+}
+
+.chat-status {
+  margin: 0;
+  font-size: 0.9em;
+  color: #999;
+}
+
+.chat-body {
+  flex-grow: 1;
+  padding: 20px;
+  overflow-y: auto;
+  background-color: #2a2a2a;
+}
+
+/* --- Estilos para Mensagens (Exemplo) --- */
+
+.message-container {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.message-container.user {
+  justify-content: flex-end;
+}
+
+.message-container.ia {
+  justify-content: flex-start;
+}
+
+.message {
+  padding: 10px 15px;
+  border-radius: 18px;
+  max-width: 70%;
+  word-wrap: break-word;
+}
+
+.message-container.user .message {
+  background-color: #007bff;
+  color: #fff;
+  border-bottom-right-radius: 0;
+}
+
+.message-container.ia .message {
+  background-color: #444;
+  color: #fff;
+  border-bottom-left-radius: 0;
+}
+
+
+/* --- Área de Input do Chat --- */
+
+.chat-input {
+  display: flex;
+  padding: 10px 20px;
+  background-color: #212121;
+  border-top: 1px solid #333;
+  justify-content: space-between;
+}
+
+.mic-btn, .send-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 1.2em;
+  transition: background-color 0.2s;
+}
+
+.mic-btn:hover, .send-btn:hover {
+  background-color: #0056b3;
+}
