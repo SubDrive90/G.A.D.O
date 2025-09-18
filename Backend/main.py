@@ -29,7 +29,7 @@ except Exception as e:
 
 def get_gemma_response(prompt_text):
     """Gera uma resposta da IA a partir do texto do usuário."""
-    chat_prompt = f"O usuario diz: {prompt_text}. Responda à pergunta do usuario, responda-o apenas com a sua resposta."
+    chat_prompt = f"Você é um assistente virtual útil e amigável. O usuario diz: {prompt_text}. Responda à pergunta do usuario."
     input_ids = tokenizer(chat_prompt, return_tensors="pt")
     
     outputs = model.generate(**input_ids, max_new_tokens=150)
