@@ -17,14 +17,13 @@ app = Flask(__name__,
 CORS(app)
 
 # --- Configuração do Firebase ---
+db = None  # Inicializa db como None para ser usado em `chat()`
 try:
     current_dir = os.path.dirname(os.path.abspath(__file__))
     key_file_path = os.path.join(current_dir, 'firebase-key.json')
 
     if not os.path.exists(key_file_path):
         print(f"Erro: O arquivo {key_file_path} não foi encontrado. Verifique se ele está na pasta correta.")
-        cred = None
-        db = None
     else:
         cred = credentials.Certificate(key_file_path)
         firebase_admin.initialize_app(cred)
@@ -51,23 +50,19 @@ except Exception as e:
 # --- Função de Geração de Resposta da IA ---
 def get_gemma_response(prompt_text):
     """Gera uma resposta da IA a partir do texto do usuário."""
-    # Novo prompt para garantir que a IA não confunda a data com a resposta
-    chat_prompt = f"Você é um assistente virtual útil e amigável. Por favor, responda à seguinte pergunta do usuário de forma completa e natural: '{prompt_text}'"
+    chat_prompt = f"Você é um assistente virtual útil e amigável. Responda à seguinte pergunta do usuário de forma completa e natural: '{prompt_text}'"
     
     input_ids = tokenizer(chat_prompt, return_tensors="pt")
-    
     outputs = model.generate(**input_ids, max_new_tokens=150)
     response = tokenizer.decode(outputs[0])
     
-    # Remove a parte do prompt da resposta da IA
+    # Limpa a resposta
     if chat_prompt in response:
         cleaned_response = response.split(chat_prompt)[-1].strip()
     else:
         cleaned_response = response.strip()
 
-    # Limpa tags extras que a IA pode gerar
     cleaned_response = cleaned_response.replace('<bos>', '').replace('<eos>', '')
-    
     return cleaned_response
 
 # --- Rota para servir a página HTML principal ---
@@ -89,8 +84,40 @@ def chat():
     try:
         # Pega a data e a hora atual
         current_date = datetime.datetime.now().strftime("%d/%m/%Y")
-        # Envia apenas a mensagem do usuário para a função da IA
-        ai_response = get_gemma_response(user_message)
+
+        # Verifica se a mensagem contém o nome do usuário para salvar
+        user_name = None
+        if "me chamo" in user_message.lower():
+            try:
+                # Tenta extrair o nome
+                parts = user_message.lower().split("me chamo")
+                if len(parts) > 1:
+                    user_name = parts[1].strip()
+            except Exception as e:
+                print(f"Erro ao extrair o nome: {e}")
+        
+        # --- Salva o nome do usuário no Firestore ---
+        if db and user_name:
+            user_ref = db.collection('users').document('user_info')
+            user_ref.set({'name': user_name})
+            print(f"Nome do usuário '{user_name}' salvo com sucesso!")
+
+        # Constrói um prompt mais completo para a IA
+        # Tenta buscar o nome do usuário, se já estiver salvo
+        user_name_from_db = None
+        if db:
+            user_ref = db.collection('users').document('user_info')
+            user_doc = user_ref.get()
+            if user_doc.exists and 'name' in user_doc.to_dict():
+                user_name_from_db = user_doc.to_dict()['name']
+        
+        if user_name_from_db:
+            prompt_with_name = f"O usuário se chama {user_name_from_db}. {user_message}"
+        else:
+            prompt_with_name = user_message
+        
+        # Pega a resposta da IA com o prompt atualizado
+        ai_response = get_gemma_response(prompt_with_name)
         
         # Garante que a resposta seja uma string não vazia
         if not ai_response:
