@@ -1,45 +1,31 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Assistente Virtual</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Assistente Virtual</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}" />
 </head>
 <body>
-  <main class="app">
-    <aside class="sidebar">
-      <div class="profile"></div>
-      <ul class="contacts">
-        <li class="contact active">
-          <div class="avatar"></div>
-          <div>
-            <h3>Assistente Virtual</h3>
-            <p>online</p>
-          </div>
-        </li>
-      </ul>
-    </aside>
+    <main class="app">
+        <section class="chat">
+            <header class="chat-header">
+                <div class="chat-avatar"></div>
+                <div>
+                    <h2 class="chat-name">Assistente Virtual</h2>
+                    <p class="chat-status">online</p>
+                </div>
+            </header>
 
-    <section class="chat">
-      <header class="chat-header">
-        <div class="chat-avatar"></div>
-        <div>
-          <h2 class="chat-name">Assistente Virtual</h2>
-          <p class="chat-status">online</p>
-        </div>
-      </header>
+            <div class="chat-body">
+                </div>
 
-      <div class="chat-body">
-
-      </div>
-
-      <footer class="chat-input">
-        <input type="text" id="message-input" placeholder="Digite sua mensagem...">
-        <button id="send-btn" aria-label="Enviar mensagem">➤</button>
-      </footer>
-    </section>
-  </main>
-  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+            <footer class="chat-input">
+                <input type="text" id="message-input" placeholder="Digite sua mensagem...">
+                <button id="send-btn" aria-label="Enviar mensagem">➤</button>
+            </footer>
+        </section>
+    </main>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
