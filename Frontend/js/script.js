@@ -16,11 +16,11 @@ messageInput.addEventListener('keypress', (event) => {
 });
 
 function enviarMensagem() {
-    const texto = messageInput.value.trim(); // Pega o texto e remove espaços extras
+    const texto = messageInput.value.trim();
     if (texto !== '') {
-        adicionarMensagem('user', texto); // Exibe a mensagem do usuário
-        enviarParaAPI(texto); // Envia para o backend Python
-        messageInput.value = ''; // Limpa o campo de entrada
+        adicionarMensagem('user', texto);
+        enviarParaAPI(texto);
+        messageInput.value = '';
     }
 }
 
@@ -35,13 +35,20 @@ function adicionarMensagem(autor, texto) {
 
     messageContainer.appendChild(message);
     chatBody.appendChild(messageContainer);
+    
     // Rola para a última mensagem
     chatBody.scrollTop = chatBody.scrollHeight;
+    
+    return messageContainer;
 }
 
 // Função para enviar o texto do usuário para a API Python
 async function enviarParaAPI(texto) {
-    // Mensagem de "pensando" enquanto a IA processa
+    // Desabilita o input e o botão para evitar múltiplas mensagens
+    messageInput.disabled = true;
+    sendBtn.disabled = true;
+
+    // Cria a mensagem de "pensando" e armazena a referência
     const pensandoMsg = adicionarMensagem('ia', 'Pensando...');
     
     try {
@@ -54,17 +61,26 @@ async function enviarParaAPI(texto) {
         const data = await response.json();
         
         if (response.ok) {
-            // Remove a mensagem de "pensando" e adiciona a resposta da IA
+            // Remove a mensagem de "pensando" da tela
             pensandoMsg.remove();
+            
+            // Adiciona a resposta da IA à interface
             adicionarMensagem('ia', data.response);
         } else {
+            // Em caso de erro do servidor
             pensandoMsg.remove();
             adicionarMensagem('ia', 'Houve um erro no servidor. Por favor, tente novamente.');
             console.error('Erro na API:', data.error);
         }
     } catch (error) {
+        // Em caso de erro de conexão
         pensandoMsg.remove();
         adicionarMensagem('ia', 'Não foi possível conectar ao servidor. Verifique se ele está rodando.');
         console.error('Erro de conexão:', error);
+    } finally {
+        // Habilita o input e o botão novamente, independentemente do resultado
+        messageInput.disabled = false;
+        sendBtn.disabled = false;
+        messageInput.focus();
     }
 }

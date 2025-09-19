@@ -1,4 +1,5 @@
 /* --- Estilos Globais e do Corpo da Página --- */
+
 body {
     font-family: Arial, sans-serif;
     background-color: #1a1a1a;
@@ -8,24 +9,27 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh;
+    height: 100vh; /* Garante que o corpo ocupe 100% da altura da tela */
+    width: 100vw;  /* Garante que o corpo ocupe 100% da largura da tela */
 }
 
 /* --- Layout Principal da Aplicação --- */
+
 .app {
     display: flex;
-    flex-direction: column; /* Organiza os elementos em uma coluna */
-    width: 100%; /* Ocupa a largura total */
-    max-width: 800px; /* Limita a largura para melhor visualização em telas grandes */
-    height: 100%;
-    max-height: 900px;
+    flex-direction: column;
+    width: 100vw; /* Agora o .app ocupa 100% da largura da tela */
+    height: 100vh; /* E 100% da altura */
+    max-width: none; /* Remove a limitação de largura */
+    max-height: none; /* Remove a limitação de altura */
     background-color: #2a2a2a;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
-    border-radius: 10px;
+    box-shadow: none; /* Opcional: remove a sombra para um visual mais limpo */
+    border-radius: 0; /* Remove a borda arredondada */
     overflow: hidden;
 }
 
 /* --- Seção de Chat Principal --- */
+
 .chat {
     flex-grow: 1;
     display: flex;
@@ -67,6 +71,7 @@ body {
 }
 
 /* --- Estilos para Mensagens --- */
+
 .message-container {
     display: flex;
     margin-bottom: 10px;
@@ -100,6 +105,7 @@ body {
 }
 
 /* --- Área de Input do Chat --- */
+
 .chat-input {
     display: flex;
     padding: 10px 20px;
