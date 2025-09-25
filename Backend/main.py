@@ -18,15 +18,20 @@ app = Flask(__name__,
             template_folder=os.path.join(basedir, 'Frontend'))
 CORS(app)
 
-# --- Inicialização do Firebase Firestore ---
+# --- Configuração do Firebase ---
 try:
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    firebase_key_path = os.path.join(current_dir, "firebase-key.json")
-    
-    cred = credentials.Certificate(firebase_key_path)
-    firebase_admin.initialize_app(cred)
-    db = firestore.client()
-    print("Conexão com o Firebase Firestore estabelecida com sucesso!")
+    key_file_path = os.path.join(current_dir, 'firebase-key.json')
+
+    if not os.path.exists(key_file_path):
+        print(f"Erro: O arquivo {key_file_path} não foi encontrado. Verifique se ele está na pasta correta.")
+        cred = None
+        db = None
+    else:
+        cred = credentials.Certificate(key_file_path)
+        firebase_admin.initialize_app(cred)
+        db = firestore.client()
+        print("Firebase inicializado e Firestore conectado com sucesso!")
 except Exception as e:
     print(f"Erro ao conectar ao Firebase Firestore: {e}")
     exit()
@@ -71,16 +76,21 @@ except Exception as e:
 # --- Função de Geração de Resposta da IA ---
 def get_gemma_response(prompt_text):
     """Gera uma resposta da IA a partir do texto do usuário."""
-    # O Mistral 7B usa um formato de prompt específico
-    chat_prompt = f"<s>[INST] {prompt_text} [/INST]"
+    # Novo prompt para garantir que a IA não confunda a data com a resposta
+    chat_prompt = f"Você é um assistente virtual útil e amigável. Por favor, responda à seguinte pergunta do usuário de forma completa e natural: '{prompt_text}'"
     
     input_ids = tokenizer(chat_prompt, return_tensors="pt")
-    
     outputs = model.generate(**input_ids, max_new_tokens=150)
     response = tokenizer.decode(outputs[0])
     
-    # Limpa a resposta para remover o prompt e tags do modelo
-    cleaned_response = response.split("[/INST]")[-1].strip()
+    # Remove a parte do prompt da resposta da IA
+    if chat_prompt in response:
+        cleaned_response = response.split(chat_prompt)[-1].strip()
+    else:
+        cleaned_response = response.strip()
+
+    # Limpa tags extras que a IA pode gerar
+    cleaned_response = cleaned_response.replace('<bos>', '').replace('<eos>', '')
     
     return cleaned_response
 
@@ -102,9 +112,8 @@ def chat():
 
     try:
         current_date = datetime.datetime.now().strftime("%d/%m/%Y")
-        prompt_with_date = f"Hoje é dia {current_date}. {user_message}"
-        
-        ai_response = get_gemma_response(prompt_with_date)
+        # Envia apenas a mensagem do usuário para a função da IA
+        ai_response = get_gemma_response(user_message)
         
         if not ai_response:
             ai_response = "Desculpe, não consegui gerar uma resposta para isso."
