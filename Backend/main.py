@@ -2,6 +2,8 @@ import os
 import json
 import torch
 import datetime
+import random
+import string
 import firebase_admin
 from firebase_admin import credentials, firestore
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -12,61 +14,73 @@ from flask_cors import CORS
 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 app = Flask(__name__,
-             static_folder=os.path.join(basedir, 'Frontend'),
-             template_folder=os.path.join(basedir, 'Frontend'))
+            static_folder=os.path.join(basedir, 'Frontend'),
+            template_folder=os.path.join(basedir, 'Frontend'))
 CORS(app)
 
-# --- Configuração do Firebase ---
+# --- Inicialização do Firebase Firestore ---
 try:
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    key_file_path = os.path.join(current_dir, 'firebase-key.json')
-
-    if not os.path.exists(key_file_path):
-        print(f"Erro: O arquivo {key_file_path} não foi encontrado. Verifique se ele está na pasta correta.")
-        cred = None
-        db = None
-    else:
-        cred = credentials.Certificate(key_file_path)
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("Firebase inicializado e Firestore conectado com sucesso!")
+    firebase_key_path = os.path.join(current_dir, "firebase-key.json")
+    
+    cred = credentials.Certificate(firebase_key_path)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Conexão com o Firebase Firestore estabelecida com sucesso!")
 except Exception as e:
-    print(f"Erro ao inicializar o Firebase: {e}")
-    db = None
+    print(f"Erro ao conectar ao Firebase Firestore: {e}")
+    exit()
+
+def delete_all_messages():
+    """Deleta todos os documentos da coleção 'conversations'."""
+    try:
+        docs = db.collection('conversations').stream()
+        for doc in docs:
+            doc.reference.delete()
+        print("Todos os documentos da coleção 'conversations' foram deletados com sucesso!")
+    except Exception as e:
+        print(f"Erro ao deletar documentos: {e}")
+
+# Deleta todos os documentos na inicialização
+delete_all_messages()
+
+# --- Geração de um ID de Sessão e Nome de Usuário ---
+def generate_random_string(length=8):
+    letters = string.ascii_lowercase
+    return ''.join(random.choice(letters) for i in range(length))
+
+session_id = generate_random_string()
+user_name = f"usuário_{session_id}"
 
 # --- Inicialização do Modelo de IA ---
 try:
-    model_id = "google/gemma-2b-it"
-    print("Carregando o modelo Gemma...")
+    # Definindo o ID do modelo para o Mistral 7B
+    model_id = "mistralai/Mistral-7B-Instruct-v0.2"
+    print("Carregando o modelo Mistral 7B...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
-        dtype=torch.bfloat16
+        torch_dtype=torch.bfloat16,
+        low_cpu_mem_usage=True
     )
-    print("Modelo Gemma carregado com sucesso para a API!")
+    print("Modelo Mistral 7B carregado com sucesso para a API!")
 except Exception as e:
-    print(f"Erro ao carregar o modelo Gemma: {e}")
+    print(f"Erro ao carregar o modelo Mistral 7B: {e}")
     exit()
 
 # --- Função de Geração de Resposta da IA ---
 def get_gemma_response(prompt_text):
     """Gera uma resposta da IA a partir do texto do usuário."""
-    # Novo prompt para garantir que a IA não confunda a data com a resposta
-    chat_prompt = f"Você é um assistente virtual útil e amigável. Por favor, responda à seguinte pergunta do usuário de forma completa e natural: '{prompt_text}'"
+    # O Mistral 7B usa um formato de prompt específico
+    chat_prompt = f"<s>[INST] {prompt_text} [/INST]"
     
     input_ids = tokenizer(chat_prompt, return_tensors="pt")
     
     outputs = model.generate(**input_ids, max_new_tokens=150)
     response = tokenizer.decode(outputs[0])
     
-    # Remove a parte do prompt da resposta da IA
-    if chat_prompt in response:
-        cleaned_response = response.split(chat_prompt)[-1].strip()
-    else:
-        cleaned_response = response.strip()
-
-    # Limpa tags extras que a IA pode gerar
-    cleaned_response = cleaned_response.replace('<bos>', '').replace('<eos>', '')
+    # Limpa a resposta para remover o prompt e tags do modelo
+    cleaned_response = response.split("[/INST]")[-1].strip()
     
     return cleaned_response
 
@@ -87,35 +101,41 @@ def chat():
     print(f"Mensagem recebida: {user_message}")
 
     try:
-        # Pega a data e a hora atual
         current_date = datetime.datetime.now().strftime("%d/%m/%Y")
-        # Envia apenas a mensagem do usuário para a função da IA
-        ai_response = get_gemma_response(user_message)
+        prompt_with_date = f"Hoje é dia {current_date}. {user_message}"
         
-        # Garante que a resposta seja uma string não vazia
+        ai_response = get_gemma_response(prompt_with_date)
+        
         if not ai_response:
             ai_response = "Desculpe, não consegui gerar uma resposta para isso."
+
+        db.collection("conversations").add({
+            "session_id": session_id,
+            "user_name": user_name,
+            "sender": "user",
+            "message": user_message,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
+        
+        db.collection("conversations").add({
+            "session_id": session_id,
+            "user_name": user_name,
+            "sender": "ai",
+            "message": ai_response,
+            "timestamp": firestore.SERVER_TIMESTAMP
+        })
         
         print(f"Resposta da IA: {ai_response}")
-
-        # --- Salva a conversa no Firestore ---
-        if db:
-            chat_data = {
-                'user_message': user_message,
-                'ai_response': ai_response,
-                'timestamp': datetime.datetime.now()
-            }
-            doc_ref = db.collection('chat_history').add(chat_data)
-            print(f"Conversa salva com sucesso! ID do documento: {doc_ref[1].id}")
-
-        return jsonify({"response": ai_response})
+        return jsonify({"response": ai_response, "user_name": user_name})
     
     except Exception as e:
-        print(f"Erro ao processar a resposta da IA ou salvar no Firestore: {e}")
+        print(f"Erro ao processar a resposta da IA: {e}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=True)
 
+    """huggingface-cli login"""
+    """pip install --upgrade huggingface_hub"""
     """huggingface-cli login"""
     """pip install firebase-admin"""
