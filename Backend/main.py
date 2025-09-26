@@ -18,20 +18,15 @@ app = Flask(__name__,
             template_folder=os.path.join(basedir, 'Frontend'))
 CORS(app)
 
-# --- Configuração do Firebase ---
+# --- Inicialização do Firebase Firestore ---
 try:
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    key_file_path = os.path.join(current_dir, 'firebase-key.json')
-
-    if not os.path.exists(key_file_path):
-        print(f"Erro: O arquivo {key_file_path} não foi encontrado. Verifique se ele está na pasta correta.")
-        cred = None
-        db = None
-    else:
-        cred = credentials.Certificate(key_file_path)
-        firebase_admin.initialize_app(cred)
-        db = firestore.client()
-        print("Firebase inicializado e Firestore conectado com sucesso!")
+    firebase_key_path = os.path.join(current_dir, "firebase-key.json")
+    
+    cred = credentials.Certificate(firebase_key_path)
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
+    print("Conexão com o Firebase Firestore estabelecida com sucesso!")
 except Exception as e:
     print(f"Erro ao conectar ao Firebase Firestore: {e}")
     exit()
@@ -59,40 +54,49 @@ user_name = f"usuário_{session_id}"
 
 # --- Inicialização do Modelo de IA ---
 try:
-    # Definindo o ID do modelo para o Mistral 7B
-    model_id = "mistralai/Mistral-7B-Instruct-v0.2"
-    print("Carregando o modelo Mistral 7B...")
+    # Alterado o ID do modelo para o Llama 3 8B Instruct
+    model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
+    print("Carregando o modelo Llama 3 8B...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     model = AutoModelForCausalLM.from_pretrained(
         model_id,
         torch_dtype=torch.bfloat16,
         low_cpu_mem_usage=True
     )
-    print("Modelo Mistral 7B carregado com sucesso para a API!")
+    print("Modelo Llama 3 8B carregado com sucesso para a API!")
 except Exception as e:
-    print(f"Erro ao carregar o modelo Mistral 7B: {e}")
+    print(f"Erro ao carregar o modelo Llama 3 8B: {e}")
     exit()
 
 # --- Função de Geração de Resposta da IA ---
 def get_gemma_response(prompt_text):
     """Gera uma resposta da IA a partir do texto do usuário."""
-    # Novo prompt para garantir que a IA não confunda a data com a resposta
-    chat_prompt = f"Você é um assistente virtual útil e amigável. Por favor, responda à seguinte pergunta do usuário de forma completa e natural: '{prompt_text}'"
+    # O Llama 3 usa um formato de prompt específico para chat
+    chat = [
+        {"role": "user", "content": prompt_text},
+    ]
     
-    input_ids = tokenizer(chat_prompt, return_tensors="pt")
-    outputs = model.generate(**input_ids, max_new_tokens=150)
-    response = tokenizer.decode(outputs[0])
+    # Aplica o formato de template do Llama 3
+    prompt = tokenizer.apply_chat_template(
+        chat,
+        tokenize=False,
+        add_generation_prompt=True
+    )
     
-    # Remove a parte do prompt da resposta da IA
-    if chat_prompt in response:
-        cleaned_response = response.split(chat_prompt)[-1].strip()
-    else:
-        cleaned_response = response.strip()
-
-    # Limpa tags extras que a IA pode gerar
-    cleaned_response = cleaned_response.replace('<bos>', '').replace('<eos>', '')
+    input_ids = tokenizer(prompt, return_tensors="pt")
     
-    return cleaned_response
+    outputs = model.generate(
+        **input_ids,
+        max_new_tokens=150
+    )
+    
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    
+    # O Llama 3 retorna todo o histórico (inclusive o prompt). Pegamos apenas a parte da resposta.
+    # Esta é uma simplificação e pode ser refinada.
+    ai_response = response.split("<|end_of_turn|>")[-1].strip()
+    
+    return ai_response
 
 # --- Rota para servir a página HTML principal ---
 @app.route('/')
@@ -112,8 +116,9 @@ def chat():
 
     try:
         current_date = datetime.datetime.now().strftime("%d/%m/%Y")
-        # Envia apenas a mensagem do usuário para a função da IA
-        ai_response = get_gemma_response(user_message)
+        prompt_with_date = f"Hoje é dia {current_date}. {user_message}"
+        
+        ai_response = get_gemma_response(prompt_with_date)
         
         if not ai_response:
             ai_response = "Desculpe, não consegui gerar uma resposta para isso."
@@ -144,7 +149,6 @@ def chat():
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=True)
 
-    """huggingface-cli login"""
     """pip install --upgrade huggingface_hub"""
     """huggingface-cli login"""
     """pip install firebase-admin"""
