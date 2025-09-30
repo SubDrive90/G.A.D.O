@@ -1,14 +1,18 @@
 import os
 import json
-import torch
 import datetime
 import random
 import string
 import firebase_admin
 from firebase_admin import credentials, firestore
-from transformers import AutoTokenizer, AutoModelForCausalLM
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
+import requests # Adicionado para baixar o modelo GGUF
+
+# --- IMPORTANTE: Biblioteca para OTIMIZAÇÃO de CPU ---
+# Esta biblioteca é usada para carregar modelos no formato GGUF,
+# que são quantizados para rodar muito mais rápido na CPU/RAM.
+from llama_cpp import Llama 
 
 # --- Configuração do Flask e CORS ---
 basedir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -52,50 +56,83 @@ def generate_random_string(length=8):
 session_id = generate_random_string()
 user_name = f"usuário_{session_id}"
 
-# --- Inicialização do Modelo de IA ---
+# --- Inicialização do Modelo de IA (Otimizado GGUF) ---
+
+# O modelo Mistral 7B quantizado em Q4_K_M (excelente equilíbrio)
+MODEL_URL = "https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF/resolve/main/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+MODEL_PATH = "mistral-7b-instruct-v0.2.Q4_K_M.gguf"
+
+# Função para garantir que o modelo GGUF seja baixado
+def ensure_model_downloaded():
+    if not os.path.exists(MODEL_PATH):
+        print(f"Baixando o modelo GGUF otimizado de: {MODEL_URL}...")
+        try:
+            response = requests.get(MODEL_URL, stream=True)
+            response.raise_for_status() # Lança um erro para códigos de status ruins
+            total_size = int(response.headers.get('content-length', 0))
+            block_size = 1024 # 1 Kibibyte
+            downloaded = 0
+            
+            with open(MODEL_PATH, 'wb') as file:
+                for data in response.iter_content(block_size):
+                    downloaded += len(data)
+                    file.write(data)
+                    # Exibindo progresso
+                    progress = int(50 * downloaded / total_size)
+                    print(f"Progresso: [{'#' * progress}{'-' * (50 - progress)}] {downloaded/ (1024*1024):.2f}MB / {total_size / (1024*1024):.2f}MB", end='\r')
+            print("\nDownload do modelo concluído!")
+        except Exception as e:
+            print(f"\nErro ao baixar o modelo GGUF. Por favor, verifique sua conexão: {e}")
+            exit()
+    else:
+        print("Modelo GGUF já existe. Pulando o download.")
+
 try:
-    # Alterado o ID do modelo para o Llama 3 8B Instruct
-    model_id = "meta-llama/Meta-Llama-3-8B-Instruct"
-    print("Carregando o modelo Llama 3 8B...")
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        torch_dtype=torch.bfloat16,
-        low_cpu_mem_usage=True
+    # Garante que o arquivo GGUF esteja presente
+    ensure_model_downloaded()
+    
+    # Carregando o modelo GGUF otimizado
+    print("Carregando o modelo Mistral 7B (Otimizado GGUF)...")
+    model = Llama(
+        model_path=MODEL_PATH,
+        n_ctx=2048, # Contexto maior
+        n_gpu_layers=0, # Força CPU (para portabilidade)
+        verbose=False
     )
-    print("Modelo Llama 3 8B carregado com sucesso para a API!")
+    print("Modelo Mistral 7B Otimizado GGUF carregado com sucesso!")
 except Exception as e:
-    print(f"Erro ao carregar o modelo Llama 3 8B: {e}")
+    print(f"Erro ao carregar o modelo GGUF: {e}")
+    print("Certifique-se de ter instalado o 'llama-cpp-python' (pip install llama-cpp-python).")
     exit()
 
 # --- Função de Geração de Resposta da IA ---
-def get_gemma_response(prompt_text):
-    """Gera uma resposta da IA a partir do texto do usuário."""
-    # O Llama 3 usa um formato de prompt específico para chat
-    chat = [
-        {"role": "user", "content": prompt_text},
-    ]
+def get_mistral_gguf_response(prompt_text):
+    """Gera uma resposta da IA usando o modelo GGUF otimizado."""
     
-    # Aplica o formato de template do Llama 3
-    prompt = tokenizer.apply_chat_template(
-        chat,
-        tokenize=False,
-        add_generation_prompt=True
+    # Obtém a data atual para o contexto
+    current_date = datetime.datetime.now().strftime("%d de %B de %Y")
+    
+    # A instrução de sistema agora inclui a data para contexto, mas pede para o modelo não mencioná-la
+    system_instruction = (
+        f"Você é um assistente virtual prestativo e amigável. "
+        f"A data atual é {current_date}. "
+        f"Responda a todas as perguntas(sem excessões) estritamente e somente em português (Brasil). "
+        f"Não mencione a data na sua resposta, a menos que seja explicitamente perguntado."
     )
     
-    input_ids = tokenizer(prompt, return_tensors="pt")
+    # Formato de prompt específico para o Mistral Instruct, incluindo a instrução de sistema
+    prompt_template = f"<s>[INST] {system_instruction} {prompt_text} [/INST]"
     
-    outputs = model.generate(
-        **input_ids,
-        max_new_tokens=150
+    output = model(
+        prompt_template,
+        max_tokens=150,
+        temperature=0.7,
+        stop=["[INST]", "</s>"], # Garante que a IA não continue a conversa
+        echo=False
     )
     
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    
-    # O Llama 3 retorna todo o histórico (inclusive o prompt). Pegamos apenas a parte da resposta.
-    # Esta é uma simplificação e pode ser refinada.
-    ai_response = response.split("<|end_of_turn|>")[-1].strip()
-    
+    # O resultado vem como uma lista de texto, pegamos a primeira e limpamos
+    ai_response = output['choices'][0]['text'].strip()
     return ai_response
 
 # --- Rota para servir a página HTML principal ---
@@ -115,10 +152,8 @@ def chat():
     print(f"Mensagem recebida: {user_message}")
 
     try:
-        current_date = datetime.datetime.now().strftime("%d/%m/%Y")
-        prompt_with_date = f"Hoje é dia {current_date}. {user_message}"
-        
-        ai_response = get_gemma_response(prompt_with_date)
+        # Passa a mensagem do usuário diretamente
+        ai_response = get_mistral_gguf_response(user_message)
         
         if not ai_response:
             ai_response = "Desculpe, não consegui gerar uma resposta para isso."
@@ -148,7 +183,6 @@ def chat():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=True)
-
     """pip install --upgrade huggingface_hub"""
     """huggingface-cli login"""
     """pip install firebase-admin"""

@@ -1,31 +1,390 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Assistente Virtual</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis</title>
+    <!-- Inclui o CSS para estilização (assumindo que ele está na pasta static/css) -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <style>
+        /* Estilos adicionais para garantir que o chat cubra toda a tela */
+        body, html {
+            height: 100%;
+            margin: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: #1c1c1c; /* Fundo escuro */
+            color: #e0e0e0;
+        }
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 100%;
+            margin: 0 auto;
+            background-color: #212121;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .chat-header {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: #2c2c2c;
+            border-bottom: 1px solid #3a3a3a;
+        }
+        .chat-header h2 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        .chat-status {
+            font-size: 0.8rem;
+            color: #4CAF50; /* Verde para Online */
+            margin-left: 10px;
+        }
+        .chat-body {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .chat-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-body::-webkit-scrollbar-thumb {
+            background-color: #555;
+            border-radius: 4px;
+        }
+        .message {
+            max-width: 70%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            word-wrap: break-word;
+            line-height: 1.4;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            transition: opacity 0.3s ease;
+        }
+        .ai-message p {
+            /* Garante espaçamento entre parágrafos de resposta da IA para melhor organização */
+            margin-top: 0.5em; 
+            margin-bottom: 0.5em;
+        }
+        .user-message {
+            align-self: flex-end;
+            background-color: #007aff; /* Azul para o usuário */
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+        .ai-message {
+            align-self: flex-start;
+            background-color: #3a3a3a; /* Cinza para a IA */
+            color: white;
+            border-bottom-left-radius: 5px;
+        }
+        .chat-input {
+            display: flex;
+            align-items: center; /* Alinha verticalmente os itens no input */
+            padding: 15px;
+            border-top: 1px solid #3a3a3a;
+            background-color: #2c2c2c;
+        }
+        #message-input {
+            flex-grow: 1;
+            padding: 12px 18px; /* Aumentado padding para caixa maior */
+            border: 1px solid #555;
+            border-radius: 25px; /* Mais arredondado */
+            margin-right: 10px;
+            background-color: #3a3a3a;
+            color: white;
+            font-size: 1.05rem; /* Fonte ligeiramente maior */
+            outline: none;
+            transition: border-color 0.3s;
+            resize: none; /* Desativa o resize padrão de textareas */
+            line-height: 1.5; /* Melhora a leitura de múltiplas linhas */
+            height: 45px; /* Altura fixa inicial */
+            overflow-y: hidden; /* Esconde a barra de rolagem quando não necessário */
+        }
+        #message-input:focus {
+            border-color: #007aff;
+        }
+        #send-btn {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 48px; /* Aumentado ligeiramente */
+            height: 48px; /* Aumentado ligeiramente */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        #send-btn:hover {
+            background-color: #0056b3;
+        }
+        #send-btn:active {
+            transform: scale(0.95);
+        }
+        #loading-indicator {
+            align-self: flex-start;
+            background-color: #3a3a3a;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            margin-top: 10px;
+            width: fit-content;
+        }
+        /* Estilos da animação (dot-pulse) omitidos por brevidade, mas mantidos */
+        .dot-pulse {
+            position: relative;
+            left: -9999px;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background-color: #fff;
+            color: #fff;
+            box-shadow: 9999px 0 0 -5px;
+            animation: dotPulse 1.5s infinite linear;
+            animation-delay: .25s;
+            margin: 0 5px;
+            display: inline-block;
+        }
+
+        .dot-pulse::before, .dot-pulse::after {
+            content: '';
+            display: inline-block;
+            position: absolute;
+            top: 0;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background-color: #fff;
+            color: #fff;
+        }
+
+        .dot-pulse::before {
+            box-shadow: 9999px 0 0 -5px;
+            animation: dotPulseBefore 1.5s infinite linear;
+            animation-delay: 0s;
+            left: -10px;
+        }
+
+        .dot-pulse::after {
+            box-shadow: 9999px 0 0 -5px;
+            animation: dotPulseAfter 1.5s infinite linear;
+            animation-delay: .5s;
+            left: 10px;
+        }
+
+        @keyframes dotPulseBefore {
+            0% { box-shadow: 9999px 0 0 -5px; }
+            30% { box-shadow: 9999px 0 0 2px; }
+            60%, 100% { box-shadow: 9999px 0 0 -5px; }
+        }
+
+        @keyframes dotPulse {
+            0% { box-shadow: 9999px 0 0 -5px; }
+            30% { box-shadow: 9999px 0 0 2px; }
+            60%, 100% { box-shadow: 9999px 0 0 -5px; }
+        }
+
+        @keyframes dotPulseAfter {
+            0% { box-shadow: 9999px 0 0 -5px; }
+            30% { box-shadow: 9999px 0 0 2px; }
+            60%, 100% { box-shadow: 9999px 0 0 -5px; }
+        }
+
+        /* Ícone de envio SVG (Flecha) */
+        .send-icon {
+            width: 24px; /* Ícone maior */
+            height: 24px; /* Ícone maior */
+            fill: currentColor;
+            transform: rotate(-10deg);
+        }
+    </style>
 </head>
 <body>
-    <main class="app">
-        <section class="chat">
-            <header class="chat-header">
-                <div class="chat-avatar"></div>
-                <div>
-                    <h2 class="chat-name">Assistente Virtual</h2>
-                    <p class="chat-status">online</p>
-                </div>
-            </header>
+    <section class="app">
+        <header class="chat-header">
+            <div class="chat-avatar"></div>
+            <div class="chat-name">
+                <h2>Jarvis</h2>
+                <div class="chat-status">online</div>
+            </div>
+        </header>
 
-            <div class="chat-body">
-                </div>
+        <div id="chat-body" class="chat-body">
+            <!-- As mensagens serão inseridas aqui -->
+            
+            <!-- Indicador de Carregamento da IA (Apenas a animação de pontos) -->
+            <div id="loading-indicator" class="ai-message">
+                <span class="dot-pulse"></span>
+            </div>
+        </div>
 
-            <footer class="chat-input">
-                <input type="text" id="message-input" placeholder="Digite sua mensagem...">
-                <button id="send-btn" aria-label="Enviar mensagem">➤</button>
-            </footer>
-        </section>
-    </main>
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+        <footer class="chat-input">
+            <!-- Mudando de input[type=text] para textarea para melhor suporte a multilinhas -->
+            <textarea id="message-input" placeholder="Digite sua mensagem..." aria-label="Digite sua mensagem." rows="1"></textarea>
+            <button id="send-btn" aria-label="Enviar mensagem">
+                <svg viewBox="0 0 24 24" class="send-icon">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </footer>
+    </section>
+
+    <script>
+        // --- VARIÁVEIS GLOBAIS ---
+        const chatBody = document.getElementById('chat-body');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // Função para simular o comportamento de scroll para o final
+        function scrollToBottom() {
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+
+        // Função para criar e adicionar uma nova mensagem
+        function addMessage(sender, text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            messageDiv.classList.add(sender === 'user' ? 'user-message' : 'ai-message');
+            
+            // Substitui quebras de linha por tags <p> para melhor organização visual
+            const formattedText = text.trim().split('\n').map(p => {
+                if (p.trim()) {
+                    return `<p>${p}</p>`;
+                }
+                return '';
+            }).join('');
+
+            messageDiv.innerHTML = formattedText || text; // Usa HTML formatado ou texto simples
+            chatBody.insertBefore(messageDiv, loadingIndicator);
+            scrollToBottom();
+        }
+
+        // Função para mostrar/esconder o indicador de carregamento
+        function showLoading(isVisible) {
+            loadingIndicator.style.opacity = isVisible ? '1' : '0';
+            scrollToBottom();
+        }
+
+        // Função principal para enviar a mensagem
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (message === '') return;
+
+            // 1. Adiciona a mensagem do usuário e limpa o input
+            addMessage('user', message);
+            messageInput.value = '';
+            
+            // Reseta a altura do textarea
+            messageInput.style.height = '45px';
+            
+            // 2. Desativa o input/botão e mostra o loading
+            sendButton.disabled = true;
+            messageInput.disabled = true;
+            showLoading(true);
+
+            try {
+                // 3. Chamada à API (com tratamento de erro e backoff)
+                const MAX_RETRIES = 5;
+                let response;
+
+                for (let i = 0; i < MAX_RETRIES; i++) {
+                    try {
+                        response = await fetch('/api/chat', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: message })
+                        });
+
+                        if (response.ok) {
+                            break; // Sai do loop se a requisição for bem-sucedida
+                        } else {
+                            // Se o status HTTP não for 200, tenta novamente
+                            console.error(`Tentativa ${i + 1} falhou com status: ${response.status}`);
+                            if (i < MAX_RETRIES - 1) {
+                                await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                            } else {
+                                throw new Error(`Falha na API após ${MAX_RETRIES} tentativas. Status: ${response.status}`);
+                            }
+                        }
+                    } catch (error) {
+                        // Trata erros de rede
+                        if (i < MAX_RETRIES - 1) {
+                            await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
+                        } else {
+                            throw error; // Relança após a última tentativa
+                        }
+                    }
+                }
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage('ai', `Erro na IA: ${data.error}`);
+                } else {
+                    // 4. Adiciona a resposta da IA
+                    addMessage('ai', data.response);
+                }
+
+            } catch (error) {
+                console.error('Erro de rede ou na API:', error);
+                addMessage('ai', 'Desculpe, houve um erro ao comunicar com o servidor. Tente novamente.');
+            } finally {
+                // 5. Restaura o estado da UI
+                showLoading(false);
+                sendButton.disabled = false;
+                messageInput.disabled = false;
+                messageInput.focus();
+            }
+        }
+
+        // Função para auto-redimensionar o textarea
+        function autoResizeTextarea() {
+            messageInput.style.height = '45px'; // Altura mínima (CSS)
+            // Define a altura baseada no conteúdo, limitada a um máximo
+            const maxHeight = window.innerHeight * 0.2; // Exemplo: 20% da altura da tela
+            messageInput.style.height = Math.min(messageInput.scrollHeight, maxHeight) + 'px';
+            
+            // Garante que o botão de envio acompanhe o centro da caixa
+            const inputHeight = messageInput.offsetHeight;
+            const buttonMargin = (inputHeight - 48) / 2;
+            sendButton.style.marginTop = `${buttonMargin}px`;
+            sendButton.style.marginBottom = `${buttonMargin}px`;
+        }
+
+        // --- LISTENERS DE EVENTOS ---
+
+        // 1. Botão de Envio
+        sendButton.addEventListener('click', sendMessage);
+
+        // 2. Tecla ENTER no Input
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { // Permite Shift+Enter para quebra de linha
+                e.preventDefault(); // Impede a quebra de linha
+                sendMessage();
+            }
+        });
+        
+        // 3. Auto-redimensionamento ao digitar
+        messageInput.addEventListener('input', autoResizeTextarea);
+
+
+        // Coloca o foco no input ao carregar a página
+        window.onload = () => {
+             messageInput.focus();
+        };
+
+    </script>
 </body>
 </html>
